@@ -14,7 +14,8 @@ python3 "$ROOT/src/emulator.py" --vfs vfs/example.csv \
     --script "$ROOT/scripts/demo_ok.esh"
 
 echo "[4] --script с ошибкой (останов при первой ошибке)"
-python3 "$ROOT/src/emulator.py" --script "$ROOT/scripts/demo_err.esh"
+python3 "$ROOT/src/emulator.py" --vfs "$ROOT/vfs/example.csv" \
+    --script "$ROOT/scripts/demo_err.esh"
 
 echo "[5] --config (TOML имеет приоритет над --vfs)"
 python3 "$ROOT/src/emulator.py" --vfs ignored \

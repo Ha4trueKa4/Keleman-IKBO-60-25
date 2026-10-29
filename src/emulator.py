@@ -4,16 +4,18 @@
 Этап 2. Конфигурация — параметры командной строки и TOML-файл, стартовый
 скрипт и служебная команда conf-dump.
 Этап 3. VFS — загрузка виртуальной файловой системы из CSV в память.
+Этап 4. Основные команды — ls, cd по дереву VFS, а также uptime, find, tree.
 """
 
 import os
 import sys
+import time
 import tkinter as tk
 from tkinter import scrolledtext
 
 from config import Config, build_config
 from parser import parse_command
-from vfs import VfsError, load_vfs, vfs_stats
+from vfs import VfsError, load_vfs, resolve, tree_lines, vfs_stats, walk_paths
 
 # Максимальное число аргументов команды cd (имя целевого каталога).
 MAX_CD_ARGS = 1
@@ -26,6 +28,8 @@ class ShellEmulator:
         """Создать окно эмулятора по конфигурации ``config``."""
         self.config = config or Config()
         self.running = True
+        self.cwd = []  # текущий каталог как список имён от корня VFS
+        self.start_time = time.monotonic()
         self.vfs_name = self._vfs_name_from(self.config.vfs_path)
 
         self.root = tk.Tk()
@@ -39,6 +43,9 @@ class ShellEmulator:
         self.commands = {
             "ls": self.cmd_ls,
             "cd": self.cmd_cd,
+            "uptime": self.cmd_uptime,
+            "find": self.cmd_find,
+            "tree": self.cmd_tree,
             "conf-dump": self.cmd_conf_dump,
             "exit": self.cmd_exit,
         }
@@ -130,8 +137,28 @@ class ShellEmulator:
     # Служебные методы
     # ------------------------------------------------------------------ #
     def _prompt(self) -> str:
-        """Вернуть строку приглашения командной строки."""
-        return f"{self.vfs_name}$ "
+        """Вернуть строку приглашения с текущим каталогом VFS."""
+        return f"{self.vfs_name}:{self._cwd_str()}$ "
+
+    def _cwd_str(self) -> str:
+        """Вернуть текущий каталог как строку пути (например, /home)."""
+        return "/" + "/".join(self.cwd)
+
+    def _refresh_prompt(self) -> None:
+        """Обновить надпись приглашения после смены каталога."""
+        self.prompt_label.config(text=self._prompt())
+
+    def _format_listing(self, node) -> str:
+        """Сформировать вывод ls для узла (каталоги с «/» в конце)."""
+        if not node.is_dir:
+            return f"{node.name}\n"
+        if not node.children:
+            return "(пусто)\n"
+        names = []
+        for name in sorted(node.children):
+            child = node.children[name]
+            names.append(f"{name}/" if child.is_dir else name)
+        return "\n".join(names) + "\n"
 
     def _write(self, text: str) -> None:
         """Вывести текст в область вывода."""
@@ -204,18 +231,68 @@ class ShellEmulator:
     # ------------------------------------------------------------------ #
     # Команды
     # ------------------------------------------------------------------ #
+    def _resolve_or_report(self, cmd, target):
+        """Найти узел по пути или вывести ошибку. Возвращает (узел, части)."""
+        if self.vfs_root is None:
+            self._write(f"{cmd}: VFS не загружена\n")
+            return None, None
+        try:
+            return resolve(self.vfs_root, self.cwd, target)
+        except VfsError as exc:
+            self._write(f"{cmd}: {exc}\n")
+            return None, None
+
     def cmd_ls(self, args) -> bool:
-        """Заглушка команды ls: выводит имя команды и аргументы."""
-        self._write(f"ls {args}\n")
+        """Вывести содержимое каталога VFS (по умолчанию — текущего)."""
+        paths = [a for a in args if not a.startswith("-")]
+        target = paths[0] if paths else "."
+        node, _ = self._resolve_or_report("ls", target)
+        if node is None:
+            return False
+        self._write(self._format_listing(node))
         return True
 
     def cmd_cd(self, args) -> bool:
-        """Заглушка команды cd: выводит имя команды и аргументы."""
+        """Сменить текущий каталог VFS."""
         # Требование: сообщить о неверных аргументах.
         if len(args) > MAX_CD_ARGS:
             self._write("cd: слишком много аргументов\n")
             return False
-        self._write(f"cd {args}\n")
+        target = args[0] if args else "/"
+        node, parts = self._resolve_or_report("cd", target)
+        if node is None:
+            return False
+        if not node.is_dir:
+            self._write(f"cd: не каталог: {target}\n")
+            return False
+        self.cwd = parts
+        self._refresh_prompt()
+        return True
+
+    def cmd_uptime(self, args) -> bool:
+        """Вывести время работы эмулятора в секундах."""
+        seconds = int(time.monotonic() - self.start_time)
+        self._write(f"uptime: {seconds} с\n")
+        return True
+
+    def cmd_find(self, args) -> bool:
+        """Вывести все пути внутри каталога (рекурсивно)."""
+        target = args[0] if args else "."
+        node, parts = self._resolve_or_report("find", target)
+        if node is None:
+            return False
+        for path in walk_paths(node, "/" + "/".join(parts)):
+            self._write(f"{path}\n")
+        return True
+
+    def cmd_tree(self, args) -> bool:
+        """Вывести дерево каталога с отступами."""
+        target = args[0] if args else "."
+        node, _ = self._resolve_or_report("tree", target)
+        if node is None:
+            return False
+        for line in tree_lines(node):
+            self._write(f"{line}\n")
         return True
 
     def cmd_conf_dump(self, args) -> bool:

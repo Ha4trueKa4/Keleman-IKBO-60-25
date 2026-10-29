@@ -1,0 +1,25 @@
+# Все команды этапа 4 (запускать с vfs/multi.csv):
+#   run.bat --vfs vfs/multi.csv --script scripts/stage4_all.esh
+# Скрипт останавливается на первой ошибке, поэтому пример ошибки — в конце.
+
+# --- ls и cd по дереву VFS ---
+ls
+cd home
+ls
+cd user
+ls
+cd ..
+cd /bin
+ls
+cd /
+
+# --- новые команды этапа 4 ---
+tree
+find /home
+uptime
+
+# --- служебная команда ---
+conf-dump
+
+# --- пример обработки ошибки (здесь скрипт остановится) ---
+cd nosuchdir

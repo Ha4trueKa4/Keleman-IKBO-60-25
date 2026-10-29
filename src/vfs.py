@@ -99,3 +99,65 @@ def vfs_stats(root):
         for child in node.children.values():
             stack.append((child, depth + 1))
     return files, dirs, max_depth
+
+
+def resolve(root, cwd_parts, path):
+    """Найти узел по пути ``path`` относительно текущего каталога.
+
+    Поддерживает абсолютные и относительные пути, "." и "..".
+    Возвращает (узел, части_пути). Бросает VfsError, если пути нет.
+    """
+    parts = [] if path.startswith("/") else list(cwd_parts)
+    for token in path.split("/"):
+        if token in ("", "."):
+            continue
+        if token == "..":
+            if parts:
+                parts.pop()
+            continue
+        parts.append(token)
+    return _node_at(root, parts), parts
+
+
+def _node_at(root, parts):
+    """Вернуть узел по списку имён от корня или бросить VfsError."""
+    node = root
+    for part in parts:
+        child = node.children.get(part) if node.is_dir else None
+        if child is None:
+            raise VfsError(f"нет такого пути: /{'/'.join(parts)}")
+        node = child
+    return node
+
+
+def walk_paths(node, base):
+    """Вернуть полные пути узла ``node`` и всех вложенных элементов."""
+    result = []
+    stack = [(node, base)]
+    while stack:
+        cur, path = stack.pop()
+        result.append(path)
+        if not cur.is_dir:
+            continue
+        for name in sorted(cur.children, reverse=True):
+            stack.append((cur.children[name], path.rstrip("/") + "/" + name))
+    return result
+
+
+def tree_lines(node):
+    """Вернуть строки дерева с отступами, начиная с узла ``node``."""
+    lines = []
+    _tree_into(node, 0, lines)
+    return lines
+
+
+def _tree_into(node, depth, lines):
+    """Добавить в ``lines`` узел и его детей с отступом по глубине."""
+    name = node.name
+    if node.is_dir and not name.endswith("/"):
+        name += "/"
+    lines.append("  " * depth + name)
+    if not node.is_dir:
+        return
+    for child_name in sorted(node.children):
+        _tree_into(node.children[child_name], depth + 1, lines)
