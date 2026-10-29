@@ -5,25 +5,43 @@
 """
 
 import os
+import sys
 import tkinter as tk
 from tkinter import scrolledtext
 
 from parser import parse_command
+
+# Максимальное число аргументов команды cd (имя целевого каталога).
+MAX_CD_ARGS = 1
 
 
 class ShellEmulator:
     """Эмулятор оболочки с графическим интерфейсом на основе tkinter."""
 
     def __init__(self, vfs_name: str = "vfs"):
+        """Создать окно эмулятора для VFS с именем ``vfs_name``."""
         self.vfs_name = vfs_name
         self.running = True
 
-        # --- Окно ---
         self.root = tk.Tk()
         # Требование: заголовок окна должен содержать имя VFS.
         self.root.title(f"Эмулятор - [{self.vfs_name}]")
         self.root.geometry("800x500")
 
+        self._build_ui()
+
+        # Таблица команд: имя -> обработчик.
+        self.commands = {
+            "ls": self.cmd_ls,
+            "cd": self.cmd_cd,
+            "exit": self.cmd_exit,
+        }
+
+        self._write(f"Эмулятор оболочки. VFS: {self.vfs_name}\n")
+        self._write("Введите команду (ls, cd, exit).\n\n")
+
+    def _build_ui(self) -> None:
+        """Создать виджеты окна: область вывода и строку ввода."""
         # Область вывода (только для чтения).
         self.output = scrolledtext.ScrolledText(
             self.root, wrap=tk.WORD, state=tk.DISABLED,
@@ -32,7 +50,7 @@ class ShellEmulator:
         )
         self.output.pack(fill=tk.BOTH, expand=True, padx=4, pady=(4, 0))
 
-        # Строка ввода с приглашением.
+        # Нижняя полоса: приглашение и поле ввода.
         bottom = tk.Frame(self.root, bg="#1e1e1e")
         bottom.pack(fill=tk.X, padx=4, pady=4)
 
@@ -50,20 +68,11 @@ class ShellEmulator:
         self.entry.bind("<Return>", self._on_enter)
         self.entry.focus_set()
 
-        # Таблица команд: имя -> обработчик.
-        self.commands = {
-            "ls": self.cmd_ls,
-            "cd": self.cmd_cd,
-            "exit": self.cmd_exit,
-        }
-
-        self._write(f"Эмулятор оболочки. VFS: {self.vfs_name}\n")
-        self._write("Введите команду (ls, cd, exit).\n\n")
-
     # ------------------------------------------------------------------ #
     # Служебные методы
     # ------------------------------------------------------------------ #
     def _prompt(self) -> str:
+        """Вернуть строку приглашения командной строки."""
         return f"{self.vfs_name}$ "
 
     def _write(self, text: str) -> None:
@@ -119,7 +128,7 @@ class ShellEmulator:
     def cmd_cd(self, args) -> None:
         """Заглушка команды cd: выводит имя команды и аргументы."""
         # Требование: сообщить о неверных аргументах.
-        if len(args) > 1:
+        if len(args) > MAX_CD_ARGS:
             self._write("cd: слишком много аргументов\n")
             return
         self._write(f"cd {args}\n")
@@ -133,19 +142,20 @@ class ShellEmulator:
     # GUI-обработчики
     # ------------------------------------------------------------------ #
     def _on_enter(self, _event) -> None:
+        """Обработать нажатие Enter в поле ввода."""
         line = self.entry.get()
         self.entry.delete(0, tk.END)
         self.execute(line)
 
     def run(self) -> None:
+        """Запустить главный цикл обработки событий окна."""
         self.root.mainloop()
 
 
 def main() -> None:
-    # Имя VFS можно передать через аргумент или переменную окружения.
-    import sys
-
-    vfs_name = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("VFS_NAME", "vfs")
+    """Точка входа: имя VFS из аргумента или переменной окружения."""
+    default = os.environ.get("VFS_NAME", "vfs")
+    vfs_name = sys.argv[1] if len(sys.argv) > 1 else default
     ShellEmulator(vfs_name=vfs_name).run()
 
 

@@ -10,11 +10,15 @@ from parser import parse_command
 
 
 class TestParser(unittest.TestCase):
+    """Тесты функции разбора командной строки."""
+
     def test_simple(self):
         self.assertEqual(parse_command("ls"), ["ls"])
 
     def test_args(self):
-        self.assertEqual(parse_command("cd /home user"), ["cd", "/home", "user"])
+        self.assertEqual(
+            parse_command("cd /home user"), ["cd", "/home", "user"]
+        )
 
     def test_double_quotes(self):
         self.assertEqual(parse_command('ls "my dir"'), ["ls", "my dir"])
