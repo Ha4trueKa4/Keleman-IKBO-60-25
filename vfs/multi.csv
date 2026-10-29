@@ -1,0 +1,9 @@
+path,type,content
+/,dir,
+/home,dir,
+/home/user,dir,
+/home/user/notes.txt,file,aGVsbG8gZnJvbSB2ZnMK
+/home/user/docs,dir,
+/home/user/docs/readme.md,file,IyByZWFkbWUK
+/bin,dir,
+/bin/data.bin,file,AAEC//4K

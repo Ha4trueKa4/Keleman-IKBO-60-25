@@ -1,0 +1,3 @@
+path,type,content
+/,dir,
+/bad.bin,file,!!!not_base64!!!

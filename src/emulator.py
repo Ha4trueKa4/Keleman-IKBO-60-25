@@ -3,6 +3,7 @@
 Этап 1. REPL — минимальный прототип с графическим интерфейсом (GUI).
 Этап 2. Конфигурация — параметры командной строки и TOML-файл, стартовый
 скрипт и служебная команда conf-dump.
+Этап 3. VFS — загрузка виртуальной файловой системы из CSV в память.
 """
 
 import os
@@ -12,6 +13,7 @@ from tkinter import scrolledtext
 
 from config import Config, build_config
 from parser import parse_command
+from vfs import VfsError, load_vfs, vfs_stats
 
 # Максимальное число аргументов команды cd (имя целевого каталога).
 MAX_CD_ARGS = 1
@@ -41,6 +43,7 @@ class ShellEmulator:
             "exit": self.cmd_exit,
         }
 
+        self._load_vfs()
         self._print_startup(config_error)
 
     @staticmethod
@@ -77,8 +80,19 @@ class ShellEmulator:
         self.entry.bind("<Return>", self._on_enter)
         self.entry.focus_set()
 
+    def _load_vfs(self) -> None:
+        """Загрузить VFS в память по пути из конфигурации."""
+        self.vfs_root = None
+        self.vfs_error = None
+        if not self.config.vfs_path:
+            return
+        try:
+            self.vfs_root = load_vfs(self.config.vfs_path)
+        except VfsError as exc:
+            self.vfs_error = str(exc)
+
     def _print_startup(self, config_error: str) -> None:
-        """Вывести приветствие, параметры запуска и ошибку конфига."""
+        """Вывести приветствие, параметры запуска и статус VFS."""
         self._write(f"Эмулятор оболочки. VFS: {self.vfs_name}\n")
         if config_error:
             # Требование: сообщить об ошибке чтения конфигурации.
@@ -87,7 +101,22 @@ class ShellEmulator:
         self._write("Параметры запуска:\n")
         for key, value in self.config_items():
             self._write(f"  {key} = {value}\n")
+        self._write_vfs_status()
         self._write("\n")
+
+    def _write_vfs_status(self) -> None:
+        """Вывести результат загрузки VFS (успех или ошибку)."""
+        if not self.config.vfs_path:
+            return
+        if self.vfs_error:
+            # Требование: сообщить об ошибке загрузки VFS.
+            self._write(f"ошибка загрузки VFS: {self.vfs_error}\n")
+            return
+        files, dirs, depth = vfs_stats(self.vfs_root)
+        self._write(
+            f"VFS загружена: файлов={files}, "
+            f"каталогов={dirs}, глубина={depth}\n"
+        )
 
     def config_items(self):
         """Вернуть параметры эмулятора как пары (ключ, значение)."""
