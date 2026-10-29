@@ -1,7 +1,8 @@
 """Эмулятор командной оболочки ОС (UNIX-подобной).
 
 Этап 1. REPL — минимальный прототип с графическим интерфейсом (GUI).
-Команды пока являются заглушками, но диалог с пользователем уже поддерживается.
+Этап 2. Конфигурация — параметры командной строки и TOML-файл, стартовый
+скрипт и служебная команда conf-dump.
 """
 
 import os
@@ -9,6 +10,7 @@ import sys
 import tkinter as tk
 from tkinter import scrolledtext
 
+from config import Config, build_config
 from parser import parse_command
 
 # Максимальное число аргументов команды cd (имя целевого каталога).
@@ -18,10 +20,11 @@ MAX_CD_ARGS = 1
 class ShellEmulator:
     """Эмулятор оболочки с графическим интерфейсом на основе tkinter."""
 
-    def __init__(self, vfs_name: str = "vfs"):
-        """Создать окно эмулятора для VFS с именем ``vfs_name``."""
-        self.vfs_name = vfs_name
+    def __init__(self, config: Config = None, config_error: str = None):
+        """Создать окно эмулятора по конфигурации ``config``."""
+        self.config = config or Config()
         self.running = True
+        self.vfs_name = self._vfs_name_from(self.config.vfs_path)
 
         self.root = tk.Tk()
         # Требование: заголовок окна должен содержать имя VFS.
@@ -34,11 +37,17 @@ class ShellEmulator:
         self.commands = {
             "ls": self.cmd_ls,
             "cd": self.cmd_cd,
+            "conf-dump": self.cmd_conf_dump,
             "exit": self.cmd_exit,
         }
 
-        self._write(f"Эмулятор оболочки. VFS: {self.vfs_name}\n")
-        self._write("Введите команду (ls, cd, exit).\n\n")
+        self._print_startup(config_error)
+
+    @staticmethod
+    def _vfs_name_from(path: str) -> str:
+        """Вернуть имя VFS для заголовка окна по пути к VFS."""
+        name = os.path.basename(path.rstrip("/\\")) if path else ""
+        return name or "vfs"
 
     def _build_ui(self) -> None:
         """Создать виджеты окна: область вывода и строку ввода."""
@@ -68,6 +77,26 @@ class ShellEmulator:
         self.entry.bind("<Return>", self._on_enter)
         self.entry.focus_set()
 
+    def _print_startup(self, config_error: str) -> None:
+        """Вывести приветствие, параметры запуска и ошибку конфига."""
+        self._write(f"Эмулятор оболочки. VFS: {self.vfs_name}\n")
+        if config_error:
+            # Требование: сообщить об ошибке чтения конфигурации.
+            self._write(f"ошибка конфигурации: {config_error}\n")
+        # Отладочный вывод всех заданных параметров при запуске.
+        self._write("Параметры запуска:\n")
+        for key, value in self.config_items():
+            self._write(f"  {key} = {value}\n")
+        self._write("\n")
+
+    def config_items(self):
+        """Вернуть параметры эмулятора как пары (ключ, значение)."""
+        return [
+            ("vfs", self.config.vfs_path),
+            ("script", self.config.script_path),
+            ("config", self.config.config_path),
+        ]
+
     # ------------------------------------------------------------------ #
     # Служебные методы
     # ------------------------------------------------------------------ #
@@ -93,50 +122,84 @@ class ShellEmulator:
         """
         return parse_command(line)
 
-    def execute(self, line: str) -> None:
-        """Разобрать и выполнить одну строку ввода."""
+    def execute(self, line: str) -> bool:
+        """Разобрать и выполнить одну строку ввода.
+
+        Возвращает True при успехе и False при ошибке (нужно для останова
+        стартового скрипта на первой ошибке).
+        """
         self._write(f"{self._prompt()}{line}\n")
 
         if not line.strip():
-            return
+            return True
 
         try:
             tokens = self.parse(line)
         except ValueError as exc:
             self._write(f"ошибка разбора: {exc}\n")
-            return
+            return False
 
         if not tokens:
-            return
+            return True
 
         name, args = tokens[0], tokens[1:]
         handler = self.commands.get(name)
         if handler is None:
             # Требование: сообщить об ошибке (неизвестная команда).
             self._write(f"{name}: команда не найдена\n")
+            return False
+
+        return handler(args)
+
+    def run_script(self, path: str) -> None:
+        """Выполнить стартовый скрипт эмулятора.
+
+        На экране отображается и ввод, и вывод; выполнение
+        останавливается при первой ошибке команды.
+        """
+        try:
+            with open(path, encoding="utf-8") as handle:
+                lines = handle.read().splitlines()
+        except OSError as exc:
+            # Требование: сообщить об ошибке исполнения скрипта.
+            self._write(f"ошибка скрипта: {exc}\n")
             return
-
-        handler(args)
+        for line in lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if not self.execute(line):
+                self._write("скрипт остановлен из-за ошибки\n")
+                return
 
     # ------------------------------------------------------------------ #
-    # Команды (пока заглушки)
+    # Команды
     # ------------------------------------------------------------------ #
-    def cmd_ls(self, args) -> None:
+    def cmd_ls(self, args) -> bool:
         """Заглушка команды ls: выводит имя команды и аргументы."""
         self._write(f"ls {args}\n")
+        return True
 
-    def cmd_cd(self, args) -> None:
+    def cmd_cd(self, args) -> bool:
         """Заглушка команды cd: выводит имя команды и аргументы."""
         # Требование: сообщить о неверных аргументах.
         if len(args) > MAX_CD_ARGS:
             self._write("cd: слишком много аргументов\n")
-            return
+            return False
         self._write(f"cd {args}\n")
+        return True
 
-    def cmd_exit(self, args) -> None:
+    def cmd_conf_dump(self, args) -> bool:
+        """Служебная команда: вывести параметры в формате ключ-значение."""
+        for key, value in self.config_items():
+            self._write(f"{key} = {value}\n")
+        return True
+
+    def cmd_exit(self, args) -> bool:
         """Завершить работу эмулятора."""
         self.running = False
         self.root.destroy()
+        return True
 
     # ------------------------------------------------------------------ #
     # GUI-обработчики
@@ -153,10 +216,12 @@ class ShellEmulator:
 
 
 def main() -> None:
-    """Точка входа: имя VFS из аргумента или переменной окружения."""
-    default = os.environ.get("VFS_NAME", "vfs")
-    vfs_name = sys.argv[1] if len(sys.argv) > 1 else default
-    ShellEmulator(vfs_name=vfs_name).run()
+    """Точка входа: собрать конфигурацию и запустить эмулятор."""
+    config, error = build_config(sys.argv[1:])
+    app = ShellEmulator(config, config_error=error)
+    if config.script_path:
+        app.run_script(config.script_path)
+    app.run()
 
 
 if __name__ == "__main__":
