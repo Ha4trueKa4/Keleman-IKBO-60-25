@@ -31,14 +31,17 @@
 │   ├── demo_err.esh       # стартовый скрипт с ошибкой (останов)
 │   ├── stage3_all.esh     # команды на загруженной VFS
 │   ├── stage4_all.esh     # все команды этапа 4 + обработка ошибок
+│   ├── stage5_all.esh     # команды этапа 5 (mkdir, rm) + ошибки
 │   ├── run_demo.bat/.sh   # демонстрация CLI-параметров
 │   ├── run_vfs.bat/.sh    # проверка вариантов VFS
-│   └── run_stage4.bat/.sh # демонстрация команд этапа 4
+│   ├── run_stage4.bat/.sh # демонстрация команд этапа 4
+│   └── run_stage5.bat/.sh # демонстрация команд этапа 5
 └── tests/
     ├── test_parser.py
     ├── test_config.py
     ├── test_vfs.py
-    └── test_nav.py
+    ├── test_nav.py
+    └── test_fs_ops.py
 ```
 
 ## Запуск
@@ -174,9 +177,26 @@ run.bat --vfs vfs\multi.csv --script scripts\stage3_all.esh
 run.bat --vfs vfs\multi.csv --script scripts\stage4_all.esh
 ```
 
+## Этап 5. Дополнительные команды (реализовано)
+
+| # | Требование | Где |
+|---|------------|-----|
+| 1 | Команды `mkdir` и `rm` | `cmd_mkdir`, `cmd_rm`, `vfs.make_dir`, `vfs.remove` |
+| 2 | Стартовый скрипт со всеми командами и ошибками | `scripts/stage5_all.esh` |
+| 3 | Коммит | `feat:` этап 5 |
+
+| Команда | Что делает |
+|---------|-----------|
+| `mkdir путь` | создать каталог |
+| `rm путь` | удалить файл или каталог |
+
+**Изменения вносятся только в память** — дерево VFS меняется, а исходный
+CSV-файл не модифицируется.
+
+```bat
+run.bat --vfs vfs\multi.csv --script scripts\stage5_all.esh
+```
+
 ---
 
-## Дальнейшие этапы (вариант 15)
-
-- **Этап 5. Дополнительные команды** — `rm`, `mkdir` (изменение VFS только
-  в памяти).
+Все пять этапов варианта 15 реализованы.

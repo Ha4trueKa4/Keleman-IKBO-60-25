@@ -5,6 +5,7 @@
 скрипт и служебная команда conf-dump.
 Этап 3. VFS — загрузка виртуальной файловой системы из CSV в память.
 Этап 4. Основные команды — ls, cd по дереву VFS, а также uptime, find, tree.
+Этап 5. Дополнительные команды — mkdir и rm (изменение VFS только в памяти).
 """
 
 import os
@@ -15,7 +16,10 @@ from tkinter import scrolledtext
 
 from config import Config, build_config
 from parser import parse_command
-from vfs import VfsError, load_vfs, resolve, tree_lines, vfs_stats, walk_paths
+from vfs import (
+    VfsError, load_vfs, make_dir, remove, resolve, tree_lines,
+    vfs_stats, walk_paths,
+)
 
 # Максимальное число аргументов команды cd (имя целевого каталога).
 MAX_CD_ARGS = 1
@@ -46,6 +50,8 @@ class ShellEmulator:
             "uptime": self.cmd_uptime,
             "find": self.cmd_find,
             "tree": self.cmd_tree,
+            "mkdir": self.cmd_mkdir,
+            "rm": self.cmd_rm,
             "conf-dump": self.cmd_conf_dump,
             "exit": self.cmd_exit,
         }
@@ -294,6 +300,29 @@ class ShellEmulator:
         for line in tree_lines(node):
             self._write(f"{line}\n")
         return True
+
+    def _modify_vfs(self, cmd, args, action) -> bool:
+        """Применить изменяющую VFS операцию и сообщить об ошибке."""
+        if self.vfs_root is None:
+            self._write(f"{cmd}: VFS не загружена\n")
+            return False
+        if not args:
+            self._write(f"{cmd}: не указан путь\n")
+            return False
+        try:
+            action(self.vfs_root, self.cwd, args[0])
+        except VfsError as exc:
+            self._write(f"{cmd}: {exc}\n")
+            return False
+        return True
+
+    def cmd_mkdir(self, args) -> bool:
+        """Создать каталог в VFS (изменение только в памяти)."""
+        return self._modify_vfs("mkdir", args, make_dir)
+
+    def cmd_rm(self, args) -> bool:
+        """Удалить файл или каталог из VFS (изменение только в памяти)."""
+        return self._modify_vfs("rm", args, remove)
 
     def cmd_conf_dump(self, args) -> bool:
         """Служебная команда: вывести параметры в формате ключ-значение."""

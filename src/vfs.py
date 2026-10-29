@@ -161,3 +161,46 @@ def _tree_into(node, depth, lines):
         return
     for child_name in sorted(node.children):
         _tree_into(node.children[child_name], depth + 1, lines)
+
+
+def split_target(cwd_parts, path):
+    """Разбить путь на (части_родителя, имя) для создания/удаления.
+
+    Учитывает текущий каталог, "." и "..". Для корня имя пустое.
+    """
+    parts = [] if path.startswith("/") else list(cwd_parts)
+    for token in path.split("/"):
+        if token in ("", "."):
+            continue
+        if token == "..":
+            if parts:
+                parts.pop()
+            continue
+        parts.append(token)
+    if not parts:
+        return [], ""
+    return parts[:-1], parts[-1]
+
+
+def make_dir(root, cwd_parts, path):
+    """Создать каталог по пути (только в памяти). Бросает VfsError."""
+    parent_parts, name = split_target(cwd_parts, path)
+    if not name:
+        raise VfsError("неверный путь")
+    parent = _node_at(root, parent_parts)
+    if not parent.is_dir:
+        raise VfsError(f"не каталог: /{'/'.join(parent_parts)}")
+    if name in parent.children:
+        raise VfsError(f"уже существует: {name}")
+    parent.children[name] = VfsNode(name=name, is_dir=True)
+
+
+def remove(root, cwd_parts, path):
+    """Удалить файл или каталог по пути (только в памяти)."""
+    parent_parts, name = split_target(cwd_parts, path)
+    if not name:
+        raise VfsError("нельзя удалить корень")
+    parent = _node_at(root, parent_parts)
+    if name not in parent.children:
+        raise VfsError(f"нет такого элемента: {name}")
+    del parent.children[name]

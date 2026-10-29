@@ -1,0 +1,22 @@
+# Команды этапа 5 (запускать с vfs/multi.csv):
+#   run.bat --vfs vfs/multi.csv --script scripts/stage5_all.esh
+# mkdir и rm меняют VFS только в памяти; исходный CSV не изменяется.
+# Скрипт останавливается на первой ошибке (пример ошибки — в конце).
+
+# --- исходное дерево ---
+tree
+
+# --- mkdir: создание каталогов ---
+mkdir /tmp
+mkdir /tmp/sub
+ls /tmp
+
+# --- rm: удаление файла ---
+rm /home/user/notes.txt
+ls /home/user
+
+# --- изменённое дерево ---
+tree
+
+# --- пример обработки ошибки (здесь скрипт остановится) ---
+rm /nonexistent
