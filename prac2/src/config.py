@@ -1,13 +1,11 @@
 import configparser
 from dataclasses import dataclass
 
+from errors import ConfigError
+
 SECTION = "analyzer"
 TRUE_VALUES = ("true", "1", "yes", "on", "да")
 FALSE_VALUES = ("false", "0", "no", "off", "нет")
-
-
-class ConfigError(Exception):
-    pass
 
 
 @dataclass(frozen=True)
@@ -43,6 +41,10 @@ def _read_section(path):
         raise ConfigError(f"файл конфигурации не найден: {path}") from exc
     except OSError as exc:
         raise ConfigError(f"не удалось прочитать '{path}': {exc}") from exc
+    except configparser.MissingSectionHeaderError as exc:
+        raise ConfigError(
+            f"в конфиге нет обязательной секции [{SECTION}]"
+        ) from exc
     except configparser.Error as exc:
         raise ConfigError(f"некорректный формат INI: {exc}") from exc
     if not parser.has_section(SECTION):
