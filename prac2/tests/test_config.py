@@ -62,6 +62,15 @@ class TestConfig(unittest.TestCase):
         expected = os.path.join(os.path.dirname(path), "repos", "x.graph")
         self.assertEqual(load_config(path).repo_url, expected)
 
+    def test_load_order_flag(self):
+        self.assertFalse(self._load(VALID).load_order)
+        text = VALID + "load_order = true\n"
+        self.assertTrue(self._load(text).load_order)
+
+    def test_bad_load_order(self):
+        with self.assertRaises(ConfigError):
+            self._load(VALID + "load_order = иногда\n")
+
     def test_bool_synonyms(self):
         text = VALID.replace("test_mode = false", "test_mode = YES")
         self.assertTrue(self._load(text).test_mode)

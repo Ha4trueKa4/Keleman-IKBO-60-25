@@ -4,7 +4,13 @@ import sys
 from config import load_config
 from errors import ConfigError, RepoError
 from graph import build_graph, find_cycles
-from report import format_cycles, format_graph, format_params
+from order import load_order
+from report import (
+    format_cycles,
+    format_graph,
+    format_order,
+    format_params,
+)
 from repository import open_repository
 
 DEFAULT_CONFIG = "config.example.ini"
@@ -44,6 +50,8 @@ def run(args):
     )
     _print(format_graph(graph))
     _print(format_cycles(find_cycles(graph.edges)))
+    if config.load_order:
+        _print(format_order(graph.root, load_order(graph.edges, graph.root)))
 
 
 def main(argv=None):

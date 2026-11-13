@@ -18,6 +18,7 @@ class Config:
     ascii_tree: bool
     max_depth: int
     filter_substring: str
+    load_order: bool = False
 
 
 def load_config(path):
@@ -30,6 +31,7 @@ def load_config(path):
         ascii_tree=_boolean(section, "ascii_tree"),
         max_depth=_depth(section, "max_depth"),
         filter_substring=_text(section, "filter", required=False),
+        load_order=_boolean(section, "load_order"),
     )
 
 
