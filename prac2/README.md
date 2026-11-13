@@ -30,7 +30,8 @@
 │   ├── repository.py       # единый интерфейс «пакет → зависимости»
 │   ├── graph.py            # граф: BFS с рекурсией, поиск циклов
 │   ├── order.py            # порядок загрузки зависимостей
-│   └── report.py           # текстовый вывод параметров и графа
+│   ├── report.py           # текстовый вывод параметров и графа
+│   └── visualize.py        # PlantUML и ASCII-дерево
 ├── repos/                  # тестовые репозитории (*.graph)
 ├── examples/               # готовые конфигурации для демонстрации
 ├── scripts/                # демонстрационные скрипты этапов
@@ -84,6 +85,7 @@ python -m unittest discover -v
 | 2 | `./scripts/demo_stage2.sh` | `scripts\demo_stage2.bat` |
 | 3 | `./scripts/demo_stage3.sh` | `scripts\demo_stage3.bat` |
 | 4 | `./scripts/demo_stage4.sh` | `scripts\demo_stage4.bat` |
+| 5 | `./scripts/demo_stage5.sh` | `scripts\demo_stage5.bat` |
 
 Сравнение с настоящим apt (нужен Linux/WSL с apt, root не требуется):
 
@@ -343,3 +345,130 @@ Ubuntu noble main и пустой список установленных пак
    альтернативу `a | b` с учётом установленных пакетов и приоритетов
    (pinning) и учитывает ограничения версий. Наш инструмент всего этого
    не делает.
+
+## Этап 5. Визуализация
+
+Итоговый вывод программы:
+
+1. граф по уровням BFS и найденные циклы (этап 3);
+2. **описание графа на языке PlantUML** — выводится всегда;
+3. **ASCII-дерево** — если `ascii_tree = true`;
+4. порядок загрузки — если `load_order = true` (этап 4).
+
+### PlantUML (`visualize.to_plantuml`)
+
+Каждый пакет — элемент `rectangle` с коротким псевдонимом `P0`, `P1`, …
+(в именах пакетов бывают символы `+`, `.`, `-`, недопустимые в
+идентификаторах PlantUML). Анализируемый пакет выделен голубым, пакеты,
+не раскрытые из-за `max_depth`, — серым, ребро, замыкающее цикл, —
+красным. Текст можно вставить на
+[plantuml.com/plantuml](https://www.plantuml.com/plantuml) или открыть
+плагином PlantUML в IDE.
+
+```
+$ ./run.sh
+...
+Описание графа на языке PlantUML:
+@startuml
+title Зависимости пакета bash
+rectangle "bash" as P0 #LightBlue
+rectangle "libc6" as P1
+rectangle "libtinfo6" as P2
+rectangle "base-files" as P3
+rectangle "debianutils" as P4
+rectangle "libgcc-s1" as P5
+rectangle "awk" as P6
+rectangle "libcrypt1" as P7
+rectangle "gcc-14-base" as P8 #LightGray
+rectangle "mawk" as P9 #LightGray
+P0 --> P1
+P0 --> P2
+P0 --> P3
+P0 --> P4
+P1 --> P5
+P2 --> P1
+P3 --> P6
+P3 --> P1
+P3 --> P7
+P4 --> P1
+P5 --> P8
+P5 -[#Red]-> P1
+P6 --> P9
+P7 --> P1
+@enduml
+```
+
+### ASCII-дерево (`visualize.to_ascii_tree`)
+
+Дерево строится обходом от корня. Чтобы большие графы не разрастались
+экспоненциально, каждый пакет раскрывается один раз, повторы
+помечаются:
+
+- `(*)` — пакет уже раскрыт выше;
+- `(цикл)` — пакет уже есть на текущем пути от корня;
+- `...` — пакет не раскрыт из-за `max_depth`.
+
+```
+bash
+|-- libc6
+|   `-- libgcc-s1
+|       |-- gcc-14-base ...
+|       `-- libc6 (цикл)
+|-- libtinfo6
+|   `-- libc6 (*)
+|-- base-files
+|   |-- awk
+|   |   `-- mawk ...
+|   |-- libc6 (*)
+|   `-- libcrypt1
+|       `-- libc6 (*)
+`-- debianutils
+    `-- libc6 (*)
+```
+
+### Примеры для трёх пакетов
+
+`./scripts/demo_stage5.sh` выводит визуализацию для `bash`
+(`config.example.ini`), `curl` (`examples/apt_curl.ini`), `git`
+(`examples/apt_git.ini`) и тестового графа `examples/test_complex.ini`.
+
+### Сравнение со штатными средствами apt
+
+Штатный инструмент визуализации apt — `apt-cache dotty` (граф в формате
+Graphviz DOT); текстовое дерево даёт `apt-cache depends --recurse`.
+Оба запущены на том же индексе Ubuntu noble main
+(`./scripts/apt_compare.sh dotty PACKAGE`). Наш граф построен с полной
+глубиной (`max_depth = 50`).
+
+| Пакет | Наш граф: пакетов / связей | dotty: связей-зависимостей | dotty: связей-конфликтов |
+|-------|----------------------------|----------------------------|--------------------------|
+| bash | 10 / 15 | 13 | 27 |
+| curl | 36 / 85 | 81 | 54 |
+| git | 54 / 132 | 130 | 184 |
+
+**Все связи-зависимости dotty для `bash` и `curl` есть в нашем графе.**
+Для `git` отличаются три связи. Объяснение всех расхождений:
+
+1. **Виртуальные пакеты.** dotty рисует виртуальный пакет треугольником
+   и дальше его не раскрывает. Мы добавляем связь на поставщика с
+   наивысшим `Priority` (`awk -> mawk`, `libssl3 -> libssl3t64`, …) и
+   раскрываем поставщика. Отсюда наши «лишние» связи.
+2. **Конфликты.** dotty рисует зелёным связи `Conflicts`/`Breaks`
+   (их больше, чем зависимостей) и проходит по ним дальше. Так у `git`
+   появились `lsb-base -> sysvinit-utils` и `sysvinit-utils -> libc6`:
+   dotty дошёл до `lsb-base` по ребру `dpkg ⇢ lsb-base` (Breaks). Наш
+   инструмент строит граф только по `Depends` и `Pre-Depends`.
+3. **Квалификатор архитектуры.** dotty оставляет `perl:any` отдельным
+   (виртуальным) узлом, мы приводим его к `perl`:
+   `liberror-perl -> perl` вместо `liberror-perl -> perl:any`.
+4. **Отсутствующие пакеты.** dotty показывает шестиугольниками пакеты,
+   которых нет в индексе (как правило, цели конфликтов). У нас их нет,
+   так как конфликты не анализируются.
+5. **Pre-Depends.** dotty выделяет их синим, мы не отличаем их от
+   `Depends`.
+6. **`apt-cache depends`** раскрывает *всех* поставщиков виртуального
+   пакета: для `<awk>` и `gawk`, и `mawk`, поэтому в его выводе есть
+   зависимости `gawk` (`libgmp10`, `libmpfr6`, `libreadline8t64`, …).
+   Мы, как и apt при установке, выбираем одного поставщика.
+7. **Формат.** dotty выдаёт Graphviz DOT, мы — PlantUML. Ограничение
+   глубины и фильтр по подстроке у dotty отсутствуют.

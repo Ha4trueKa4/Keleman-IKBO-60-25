@@ -12,8 +12,13 @@ from report import (
     format_params,
 )
 from repository import open_repository
+from visualize import to_ascii_tree, to_plantuml
 
 DEFAULT_CONFIG = "config.example.ini"
+TREE_LEGEND = (
+    "(*) — уже показан выше, (цикл) — циклическая зависимость, "
+    "... — не раскрыт из-за max_depth"
+)
 
 
 def parse_args(argv):
@@ -39,6 +44,29 @@ def _print(lines):
         print(line)
 
 
+def _section(lines):
+    print()
+    _print(lines)
+
+
+def report(config, graph):
+    cycles = find_cycles(graph.edges)
+    _print(format_graph(graph))
+    _print(format_cycles(cycles))
+    _section(
+        ["Описание графа на языке PlantUML:"] + to_plantuml(graph, cycles)
+    )
+    if config.ascii_tree:
+        _section(
+            ["Зависимости в виде ASCII-дерева:"]
+            + to_ascii_tree(graph)
+            + [TREE_LEGEND]
+        )
+    if config.load_order:
+        order = load_order(graph.edges, graph.root)
+        _section(format_order(graph.root, order))
+
+
 def run(args):
     config = load_config(args.config)
     if args.show_config:
@@ -48,10 +76,7 @@ def run(args):
     graph = build_graph(
         config.package, resolve, config.max_depth, config.filter_substring
     )
-    _print(format_graph(graph))
-    _print(format_cycles(find_cycles(graph.edges)))
-    if config.load_order:
-        _print(format_order(graph.root, load_order(graph.edges, graph.root)))
+    report(config, graph)
 
 
 def main(argv=None):
