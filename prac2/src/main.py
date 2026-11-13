@@ -1,48 +1,50 @@
-"""CLI-инструмент визуализации графа зависимостей (apt, PlantUML).
-
-Вариант 15. На этапе 1 приложение читает INI-конфигурацию и выводит
-все настраиваемые пользователем параметры в формате «ключ-значение».
-"""
-
 import argparse
 import sys
 
 from config import ConfigError, load_config
 
+DEFAULT_CONFIG = "config.example.ini"
+
 
 def parse_args(argv):
-    """Разобрать аргументы командной строки (путь к INI-конфигу)."""
     parser = argparse.ArgumentParser(
+        prog="depgraph",
         description="Визуализатор графа зависимостей пакетов apt.",
     )
     parser.add_argument(
-        "--config", required=True, help="путь к INI-файлу конфигурации",
+        "--config",
+        default=DEFAULT_CONFIG,
+        help=f"путь к INI-файлу конфигурации (по умолчанию {DEFAULT_CONFIG})",
     )
     return parser.parse_args(argv)
 
 
 def format_params(config):
-    """Вернуть строки «ключ = значение» для всех параметров анализа."""
-    return [
-        f"package      = {config.package}",
-        f"repo_url     = {config.repo_url}",
-        f"test_mode    = {config.test_mode}",
-        f"version      = {config.version or '(любая)'}",
-        f"ascii_tree   = {config.ascii_tree}",
-        f"max_depth    = {config.max_depth}",
-        f"filter       = {config.filter_substring or '(нет)'}",
+    rows = [
+        ("package", config.package),
+        ("repo_url", config.repo_url),
+        ("test_mode", _as_bool(config.test_mode)),
+        ("version", config.version or "(любая)"),
+        ("ascii_tree", _as_bool(config.ascii_tree)),
+        ("max_depth", config.max_depth),
+        ("filter", config.filter_substring or "(нет)"),
     ]
+    width = max(len(key) for key, _ in rows)
+    return [f"{key.ljust(width)} = {value}" for key, value in rows]
+
+
+def _as_bool(flag):
+    return "true" if flag else "false"
 
 
 def main(argv=None):
-    """Точка входа: прочитать конфиг и вывести параметры."""
     args = parse_args(sys.argv[1:] if argv is None else argv)
     try:
         config = load_config(args.config)
     except ConfigError as exc:
         print(f"Ошибка конфигурации: {exc}", file=sys.stderr)
         return 1
-    print("Параметры анализа:")
+    print(f"Параметры анализа (из {args.config}):")
     for line in format_params(config):
         print(f"  {line}")
     return 0

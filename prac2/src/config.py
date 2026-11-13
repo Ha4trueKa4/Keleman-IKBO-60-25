@@ -1,25 +1,17 @@
-"""Конфигурация инструмента анализа зависимостей. Этап 1.
-
-Единственный источник настраиваемых пользователем параметров —
-конфигурационный файл формата INI (секция ``[analyzer]``). Модуль
-читает файл, проверяет значения и возвращает объект :class:`Config`.
-"""
-
 import configparser
 from dataclasses import dataclass
 
 SECTION = "analyzer"
-MIN_DEPTH = 0
+TRUE_VALUES = ("true", "1", "yes", "on", "да")
+FALSE_VALUES = ("false", "0", "no", "off", "нет")
 
 
 class ConfigError(Exception):
-    """Ошибка чтения или валидации конфигурации."""
+    pass
 
 
-@dataclass
+@dataclass(frozen=True)
 class Config:
-    """Набор настраиваемых пользователем параметров анализа."""
-
     package: str
     repo_url: str
     test_mode: bool
@@ -30,63 +22,64 @@ class Config:
 
 
 def load_config(path):
-    """Прочитать INI-файл и вернуть проверенный :class:`Config`.
-
-    Бросает :class:`ConfigError` при отсутствии файла, отсутствии
-    обязательных параметров или неверном формате значений.
-    """
-    parser = configparser.ConfigParser()
-    section = _read_section(parser, path)
+    section = _read_section(path)
     return Config(
-        package=_require(section, "package"),
-        repo_url=_require(section, "repo_url"),
-        test_mode=_get_bool(section, "test_mode"),
-        version=section.get("version", "").strip(),
-        ascii_tree=_get_bool(section, "ascii_tree"),
-        max_depth=_get_depth(section),
-        filter_substring=section.get("filter", "").strip(),
+        package=_text(section, "package", required=True),
+        repo_url=_text(section, "repo_url", required=True),
+        test_mode=_boolean(section, "test_mode"),
+        version=_text(section, "version", required=False),
+        ascii_tree=_boolean(section, "ascii_tree"),
+        max_depth=_depth(section, "max_depth"),
+        filter_substring=_text(section, "filter", required=False),
     )
 
 
-def _read_section(parser, path):
-    """Загрузить файл и вернуть секцию ``[analyzer]`` или бросить ошибку."""
+def _read_section(path):
+    parser = configparser.ConfigParser()
     try:
         with open(path, encoding="utf-8") as handle:
             parser.read_file(handle)
+    except FileNotFoundError as exc:
+        raise ConfigError(f"файл конфигурации не найден: {path}") from exc
     except OSError as exc:
-        raise ConfigError(f"не удалось открыть конфиг '{path}': {exc}") from exc
+        raise ConfigError(f"не удалось прочитать '{path}': {exc}") from exc
     except configparser.Error as exc:
-        raise ConfigError(f"неверный формат INI: {exc}") from exc
+        raise ConfigError(f"некорректный формат INI: {exc}") from exc
     if not parser.has_section(SECTION):
-        raise ConfigError(f"нет секции [{SECTION}] в конфиге")
+        raise ConfigError(f"в конфиге нет обязательной секции [{SECTION}]")
     return parser[SECTION]
 
 
-def _require(section, key):
-    """Вернуть непустое значение ключа или бросить :class:`ConfigError`."""
+def _text(section, key, required):
     value = section.get(key, "").strip()
-    if not value:
+    if required and not value:
         raise ConfigError(f"не задан обязательный параметр '{key}'")
     return value
 
 
-def _get_bool(section, key):
-    """Прочитать булев параметр (по умолчанию False)."""
-    try:
-        return section.getboolean(key, fallback=False)
-    except ValueError as exc:
-        raise ConfigError(f"параметр '{key}' должен быть true/false") from exc
-
-
-def _get_depth(section):
-    """Прочитать и проверить максимальную глубину анализа."""
-    raw = section.get("max_depth", "").strip()
+def _boolean(section, key):
+    raw = section.get(key, "").strip().lower()
     if not raw:
-        raise ConfigError("не задан обязательный параметр 'max_depth'")
+        return False
+    if raw in TRUE_VALUES:
+        return True
+    if raw in FALSE_VALUES:
+        return False
+    raise ConfigError(
+        f"параметр '{key}' должен быть true/false, получено '{raw}'"
+    )
+
+
+def _depth(section, key):
+    raw = section.get(key, "").strip()
+    if not raw:
+        raise ConfigError(f"не задан обязательный параметр '{key}'")
     try:
-        depth = int(raw)
+        value = int(raw)
     except ValueError as exc:
-        raise ConfigError("параметр 'max_depth' должен быть целым") from exc
-    if depth < MIN_DEPTH:
-        raise ConfigError("глубина 'max_depth' не может быть отрицательной")
-    return depth
+        raise ConfigError(
+            f"параметр '{key}' должен быть целым числом, получено '{raw}'"
+        ) from exc
+    if value < 0:
+        raise ConfigError(f"параметр '{key}' не может быть отрицательным")
+    return value
