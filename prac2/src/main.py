@@ -1,9 +1,11 @@
 import argparse
 import sys
 
-from apt_repo import direct_dependencies, find_package, load_index
 from config import load_config
 from errors import ConfigError, RepoError
+from graph import build_graph, find_cycles
+from report import format_cycles, format_graph, format_params
+from repository import open_repository
 
 DEFAULT_CONFIG = "config.example.ini"
 
@@ -26,47 +28,22 @@ def parse_args(argv):
     return parser.parse_args(argv)
 
 
-def format_params(config):
-    rows = [
-        ("package", config.package),
-        ("repo_url", config.repo_url),
-        ("test_mode", _as_bool(config.test_mode)),
-        ("version", config.version or "(любая)"),
-        ("ascii_tree", _as_bool(config.ascii_tree)),
-        ("max_depth", config.max_depth),
-        ("filter", config.filter_substring or "(нет)"),
-    ]
-    width = max(len(key) for key, _ in rows)
-    return [f"{key.ljust(width)} = {value}" for key, value in rows]
-
-
-def _as_bool(flag):
-    return "true" if flag else "false"
-
-
-def print_params(path, config):
-    print(f"Параметры анализа (из {path}):")
-    for line in format_params(config):
-        print(f"  {line}")
-
-
-def print_direct(name, stanza):
-    deps = direct_dependencies(stanza)
-    print(f"Прямые зависимости {name} {stanza.get('Version', '?')}:")
-    for dep in deps:
-        print(f"  {dep}")
-    if not deps:
-        print("  (нет)")
+def _print(lines):
+    for line in lines:
+        print(line)
 
 
 def run(args):
     config = load_config(args.config)
     if args.show_config:
-        print_params(args.config, config)
+        _print(format_params(args.config, config))
         return
-    index = load_index(config.repo_url)
-    stanza = find_package(index, config.package, config.version)
-    print_direct(config.package, stanza)
+    resolve = open_repository(config)
+    graph = build_graph(
+        config.package, resolve, config.max_depth, config.filter_substring
+    )
+    _print(format_graph(graph))
+    _print(format_cycles(find_cycles(graph.edges)))
 
 
 def main(argv=None):

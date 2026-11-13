@@ -54,6 +54,14 @@ class TestConfig(unittest.TestCase):
         self.assertFalse(config.ascii_tree)
         self.assertEqual(config.max_depth, 0)
 
+    def test_relative_repo_path(self):
+        path = _write(VALID.replace(
+            "http://example/Packages.gz", "repos/x.graph"
+        ))
+        self.addCleanup(os.remove, path)
+        expected = os.path.join(os.path.dirname(path), "repos", "x.graph")
+        self.assertEqual(load_config(path).repo_url, expected)
+
     def test_bool_synonyms(self):
         text = VALID.replace("test_mode = false", "test_mode = YES")
         self.assertTrue(self._load(text).test_mode)

@@ -6,6 +6,7 @@ import urllib.request
 from errors import RepoError
 
 DEPENDENCY_FIELDS = ("Pre-Depends", "Depends")
+PRIORITIES = ("required", "important", "standard", "optional", "extra")
 NAME_PATTERN = re.compile(r"[a-z0-9][a-z0-9+.-]*")
 TIMEOUT = 60
 
@@ -86,6 +87,25 @@ def direct_dependencies(stanza):
             if name and name not in result:
                 result.append(name)
     return result
+
+
+def virtual_providers(index):
+    providers = {}
+    for name, stanzas in index.items():
+        for group in stanzas[-1].get("Provides", "").split(","):
+            virtual = _first_alternative(group)
+            if virtual and virtual not in index:
+                providers.setdefault(virtual, []).append(name)
+    for names in providers.values():
+        names.sort(key=lambda name: _priority_rank(index[name][-1]))
+    return providers
+
+
+def _priority_rank(stanza):
+    priority = stanza.get("Priority", "optional")
+    if priority in PRIORITIES:
+        return PRIORITIES.index(priority)
+    return len(PRIORITIES)
 
 
 def _first_alternative(group):

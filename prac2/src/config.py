@@ -1,4 +1,5 @@
 import configparser
+import os
 from dataclasses import dataclass
 
 from errors import ConfigError
@@ -23,7 +24,7 @@ def load_config(path):
     section = _read_section(path)
     return Config(
         package=_text(section, "package", required=True),
-        repo_url=_text(section, "repo_url", required=True),
+        repo_url=_source(section, path),
         test_mode=_boolean(section, "test_mode"),
         version=_text(section, "version", required=False),
         ascii_tree=_boolean(section, "ascii_tree"),
@@ -57,6 +58,14 @@ def _text(section, key, required):
     if required and not value:
         raise ConfigError(f"не задан обязательный параметр '{key}'")
     return value
+
+
+def _source(section, config_path):
+    value = _text(section, "repo_url", required=True)
+    if "://" in value or os.path.isabs(value):
+        return value
+    base = os.path.dirname(os.path.abspath(config_path))
+    return os.path.normpath(os.path.join(base, value))
 
 
 def _boolean(section, key):
