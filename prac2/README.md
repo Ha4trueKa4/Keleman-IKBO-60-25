@@ -127,11 +127,11 @@ pydocstyle --convention=pep257 src tests
 
 | Этап | Коммит |
 |------|--------|
-| 1 | `b11c9f3` refactor(config): переписать этап 1 |
-| 2 | `a91e614` feat(apt): сбор прямых зависимостей |
-| 3 | `ed863f3` feat(graph): граф обходом BFS с рекурсией |
-| 4 | `81948fc` feat(order): порядок загрузки |
-| 5 | `fe53196` feat(visualize): PlantUML и ASCII-дерево |
+| 1 | `7a526b7` refactor(config): переписать этап 1 |
+| 2 | `720460c` feat(apt): сбор прямых зависимостей |
+| 3 | `f69c8ba` feat(graph): граф обходом BFS с рекурсией |
+| 4 | `93db260` feat(order): порядок загрузки |
+| 5 | `74f51dc` feat(visualize): PlantUML и ASCII-дерево |
 
 ---
 
