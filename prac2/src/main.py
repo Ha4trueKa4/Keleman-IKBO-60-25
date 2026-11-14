@@ -1,3 +1,9 @@
+"""CLI-инструмент визуализации графа зависимостей пакетов apt.
+
+Вариант 15: конфигурация в формате INI, пакеты Ubuntu (apt), обход
+графа алгоритмом BFS с рекурсией, визуализация на языке PlantUML.
+"""
+
 import argparse
 import sys
 
@@ -22,6 +28,14 @@ TREE_LEGEND = (
 
 
 def parse_args(argv):
+    """Разобрать аргументы командной строки.
+
+    Args:
+        argv: список аргументов без имени программы.
+
+    Returns:
+        argparse.Namespace: поля ``config`` и ``show_config``.
+    """
     parser = argparse.ArgumentParser(
         prog="depgraph",
         description="Визуализатор графа зависимостей пакетов apt.",
@@ -40,16 +54,24 @@ def parse_args(argv):
 
 
 def _print(lines):
+    """Напечатать строки по одной."""
     for line in lines:
         print(line)
 
 
 def _section(lines):
+    """Напечатать блок вывода, отделив его пустой строкой."""
     print()
     _print(lines)
 
 
 def report(config, graph):
+    """Вывести граф, циклы, PlantUML, ASCII-дерево и порядок загрузки.
+
+    Args:
+        config: параметры анализа (:class:`config.Config`).
+        graph: построенный граф зависимостей.
+    """
     cycles = find_cycles(graph.edges)
     _print(format_graph(graph))
     _print(format_cycles(cycles))
@@ -68,6 +90,15 @@ def report(config, graph):
 
 
 def run(args):
+    """Выполнить анализ по параметрам из конфигурационного файла.
+
+    Args:
+        args: разобранные аргументы командной строки.
+
+    Raises:
+        ConfigError: ошибка в конфигурационном файле.
+        RepoError: ошибка получения данных репозитория.
+    """
     config = load_config(args.config)
     if args.show_config:
         _print(format_params(args.config, config))
@@ -80,6 +111,14 @@ def run(args):
 
 
 def main(argv=None):
+    """Запустить анализ и вернуть код завершения.
+
+    Args:
+        argv: аргументы командной строки; ``None`` — взять из sys.argv.
+
+    Returns:
+        int: 0 при успехе, 1 при ошибке конфигурации или репозитория.
+    """
     args = parse_args(sys.argv[1:] if argv is None else argv)
     try:
         run(args)

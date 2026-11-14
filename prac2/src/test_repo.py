@@ -1,3 +1,12 @@
+"""Тестовый репозиторий: граф пакетов из текстового файла (этап 3).
+
+Каждая непустая строка описывает пакет и его прямые зависимости::
+
+    A: B C
+
+Имена пакетов состоят только из больших латинских букв.
+"""
+
 import re
 
 from errors import RepoError
@@ -6,6 +15,18 @@ NAME_PATTERN = re.compile(r"[A-Z]+")
 
 
 def load_test_repo(path):
+    """Прочитать файл тестового репозитория.
+
+    Args:
+        path: путь к файлу описания графа.
+
+    Returns:
+        dict: имя пакета -> список его прямых зависимостей.
+
+    Raises:
+        RepoError: файл не читается или пуст, содержит ошибку формата,
+            недопустимое имя или повторное описание пакета.
+    """
     try:
         with open(path, encoding="utf-8") as handle:
             lines = handle.read().splitlines()
@@ -27,6 +48,11 @@ def load_test_repo(path):
 
 
 def _parse_line(line, number):
+    """Разобрать строку ``ПАКЕТ: ЗАВИСИМОСТИ`` в имя и список зависимостей.
+
+    Raises:
+        RepoError: нет двоеточия или имя не из больших латинских букв.
+    """
     head, colon, tail = line.partition(":")
     if not colon:
         raise RepoError(

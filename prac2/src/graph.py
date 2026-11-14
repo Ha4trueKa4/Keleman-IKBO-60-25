@@ -1,8 +1,20 @@
+"""Граф зависимостей: обход BFS с рекурсией и поиск циклов (этап 3)."""
+
 from dataclasses import dataclass, field
 
 
 @dataclass
 class DependencyGraph:
+    """Граф зависимостей пакета.
+
+    Attributes:
+        root: имя анализируемого пакета.
+        max_depth: максимальная глубина анализа.
+        exclude: подстрока для исключения пакетов.
+        edges: список смежности: пакет -> его прямые зависимости.
+        depths: уровень BFS, на котором найден каждый пакет.
+    """
+
     root: str
     max_depth: int
     exclude: str = ""
@@ -10,13 +22,26 @@ class DependencyGraph:
     depths: dict = field(default_factory=dict)
 
     def expanded(self, name):
+        """Проверить, раскрывались ли зависимости пакета ``name``."""
         return self.depths[name] < self.max_depth
 
     def edge_count(self):
+        """Вернуть число рёбер графа."""
         return sum(len(deps) for deps in self.edges.values())
 
 
 def build_graph(root, resolve, max_depth, exclude=""):
+    """Построить граф зависимостей пакета обходом в ширину.
+
+    Args:
+        root: имя анализируемого пакета.
+        resolve: функция ``resolve(name)`` -> прямые зависимости.
+        max_depth: сколько уровней зависимостей раскрывать.
+        exclude: подстрока; пакеты с ней в имени не анализируются.
+
+    Returns:
+        DependencyGraph: построенный граф.
+    """
     graph = DependencyGraph(root, max_depth, exclude)
     graph.edges[root] = []
     graph.depths[root] = 0
@@ -25,6 +50,11 @@ def build_graph(root, resolve, max_depth, exclude=""):
 
 
 def _bfs(level, depth, graph, resolve):
+    """Обработать один уровень BFS и рекурсивно перейти к следующему.
+
+    Каждый пакет раскрывается один раз, поэтому циклические
+    зависимости не приводят к бесконечному обходу.
+    """
     if not level or depth >= graph.max_depth:
         return
     next_level = []
@@ -41,6 +71,14 @@ def _bfs(level, depth, graph, resolve):
 
 
 def find_cycles(edges):
+    """Найти циклические зависимости обходом в глубину.
+
+    Args:
+        edges: список смежности графа.
+
+    Returns:
+        list: циклы в виде путей ``[A, B, ..., A]``.
+    """
     cycles = []
     state = {}
     for node in edges:
@@ -50,6 +88,7 @@ def find_cycles(edges):
 
 
 def _visit(node, edges, state, path, cycles):
+    """Обойти пакет в глубину и записать найденные циклы."""
     state[node] = "active"
     path.append(node)
     for dep in edges.get(node, []):
