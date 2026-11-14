@@ -15,7 +15,7 @@
 ## Структура проекта
 
 ```
-Практика 2/
+prac2/
 ├── README.md
 ├── .gitignore
 ├── .gitattributes
@@ -127,11 +127,11 @@ pydocstyle --convention=pep257 src tests
 
 | Этап | Коммит |
 |------|--------|
-| 1 | `cf312b9` refactor(config): переписать этап 1 |
-| 2 | `789ba10` feat(apt): сбор прямых зависимостей |
-| 3 | `1d61571` feat(graph): граф обходом BFS с рекурсией |
-| 4 | `00d3f6c` feat(order): порядок загрузки |
-| 5 | `acddae8` feat(visualize): PlantUML и ASCII-дерево |
+| 1 | `b11c9f3` refactor(config): переписать этап 1 |
+| 2 | `a91e614` feat(apt): сбор прямых зависимостей |
+| 3 | `ed863f3` feat(graph): граф обходом BFS с рекурсией |
+| 4 | `81948fc` feat(order): порядок загрузки |
+| 5 | `fe53196` feat(visualize): PlantUML и ASCII-дерево |
 
 ---
 
