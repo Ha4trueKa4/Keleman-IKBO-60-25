@@ -58,7 +58,6 @@ def build_config(argv):
         data = load_config(args.config)
     except ValueError as exc:
         return config, str(exc)
-    # Значения из файла имеют приоритет над командной строкой.
     if "vfs" in data:
         config.vfs_path = str(data["vfs"])
     if "script" in data:

@@ -6,6 +6,9 @@
 Этап 3. VFS — загрузка виртуальной файловой системы из CSV в память.
 Этап 4. Основные команды — ls, cd по дереву VFS, а также uptime, find, tree.
 Этап 5. Дополнительные команды — mkdir и rm (изменение VFS только в памяти).
+
+Константа ``MAX_CD_ARGS`` — максимальное число аргументов команды cd
+(имя целевого каталога).
 """
 
 import os
@@ -21,29 +24,41 @@ from vfs import (
     vfs_stats, walk_paths,
 )
 
-# Максимальное число аргументов команды cd (имя целевого каталога).
 MAX_CD_ARGS = 1
 
 
 class ShellEmulator:
-    """Эмулятор оболочки с графическим интерфейсом на основе tkinter."""
+    """Эмулятор оболочки с графическим интерфейсом на основе tkinter.
+
+    Attributes:
+        config: параметры запуска эмулятора.
+        running: работает ли эмулятор (False после команды exit).
+        cwd: текущий каталог как список имён от корня VFS.
+        start_time: момент запуска для команды uptime.
+        vfs_name: имя VFS, показываемое в заголовке окна и приглашении.
+        commands: таблица команд «имя -> обработчик».
+        vfs_root: корень загруженной VFS или None.
+        vfs_error: текст ошибки загрузки VFS или None.
+    """
 
     def __init__(self, config: Config = None, config_error: str = None):
-        """Создать окно эмулятора по конфигурации ``config``."""
+        """Создать окно эмулятора по конфигурации ``config``.
+
+        Заголовок окна содержит имя VFS. Если ``config_error`` задан, при
+        запуске выводится сообщение об ошибке чтения конфигурации.
+        """
         self.config = config or Config()
         self.running = True
-        self.cwd = []  # текущий каталог как список имён от корня VFS
+        self.cwd = []
         self.start_time = time.monotonic()
         self.vfs_name = self._vfs_name_from(self.config.vfs_path)
 
         self.root = tk.Tk()
-        # Требование: заголовок окна должен содержать имя VFS.
         self.root.title(f"Эмулятор - [{self.vfs_name}]")
         self.root.geometry("800x500")
 
         self._build_ui()
 
-        # Таблица команд: имя -> обработчик.
         self.commands = {
             "ls": self.cmd_ls,
             "cd": self.cmd_cd,
@@ -66,8 +81,11 @@ class ShellEmulator:
         return name or "vfs"
 
     def _build_ui(self) -> None:
-        """Создать виджеты окна: область вывода и строку ввода."""
-        # Область вывода (только для чтения).
+        """Создать виджеты окна: область вывода и строку ввода.
+
+        Область вывода доступна только для чтения. Нижняя полоса содержит
+        приглашение с текущим каталогом и поле ввода команды.
+        """
         self.output = scrolledtext.ScrolledText(
             self.root, wrap=tk.WORD, state=tk.DISABLED,
             bg="#1e1e1e", fg="#d4d4d4", insertbackground="#d4d4d4",
@@ -75,7 +93,6 @@ class ShellEmulator:
         )
         self.output.pack(fill=tk.BOTH, expand=True, padx=4, pady=(4, 0))
 
-        # Нижняя полоса: приглашение и поле ввода.
         bottom = tk.Frame(self.root, bg="#1e1e1e")
         bottom.pack(fill=tk.X, padx=4, pady=4)
 
@@ -105,12 +122,14 @@ class ShellEmulator:
             self.vfs_error = str(exc)
 
     def _print_startup(self, config_error: str) -> None:
-        """Вывести приветствие, параметры запуска и статус VFS."""
+        """Вывести приветствие, параметры запуска и статус VFS.
+
+        Если конфигурационный файл не прочитан, сначала выводится ошибка
+        конфигурации. Затем для отладки выводятся все заданные параметры.
+        """
         self._write(f"Эмулятор оболочки. VFS: {self.vfs_name}\n")
         if config_error:
-            # Требование: сообщить об ошибке чтения конфигурации.
             self._write(f"ошибка конфигурации: {config_error}\n")
-        # Отладочный вывод всех заданных параметров при запуске.
         self._write("Параметры запуска:\n")
         for key, value in self.config_items():
             self._write(f"  {key} = {value}\n")
@@ -122,7 +141,6 @@ class ShellEmulator:
         if not self.config.vfs_path:
             return
         if self.vfs_error:
-            # Требование: сообщить об ошибке загрузки VFS.
             self._write(f"ошибка загрузки VFS: {self.vfs_error}\n")
             return
         files, dirs, depth = vfs_stats(self.vfs_root)
@@ -139,9 +157,6 @@ class ShellEmulator:
             ("config", self.config.config_path),
         ]
 
-    # ------------------------------------------------------------------ #
-    # Служебные методы
-    # ------------------------------------------------------------------ #
     def _prompt(self) -> str:
         """Вернуть строку приглашения с текущим каталогом VFS."""
         return f"{self.vfs_name}:{self._cwd_str()}$ "
@@ -173,9 +188,6 @@ class ShellEmulator:
         self.output.see(tk.END)
         self.output.config(state=tk.DISABLED)
 
-    # ------------------------------------------------------------------ #
-    # Разбор и выполнение
-    # ------------------------------------------------------------------ #
     def parse(self, line: str):
         """Разобрать строку на команду и аргументы.
 
@@ -188,7 +200,8 @@ class ShellEmulator:
         """Разобрать и выполнить одну строку ввода.
 
         Возвращает True при успехе и False при ошибке (нужно для останова
-        стартового скрипта на первой ошибке).
+        стартового скрипта на первой ошибке). Для неизвестной команды
+        выводится сообщение «команда не найдена».
         """
         self._write(f"{self._prompt()}{line}\n")
 
@@ -207,7 +220,6 @@ class ShellEmulator:
         name, args = tokens[0], tokens[1:]
         handler = self.commands.get(name)
         if handler is None:
-            # Требование: сообщить об ошибке (неизвестная команда).
             self._write(f"{name}: команда не найдена\n")
             return False
 
@@ -217,13 +229,13 @@ class ShellEmulator:
         """Выполнить стартовый скрипт эмулятора.
 
         На экране отображается и ввод, и вывод; выполнение
-        останавливается при первой ошибке команды.
+        останавливается при первой ошибке команды. Если файл скрипта не
+        открывается, выводится сообщение об ошибке скрипта.
         """
         try:
             with open(path, encoding="utf-8") as handle:
                 lines = handle.read().splitlines()
         except OSError as exc:
-            # Требование: сообщить об ошибке исполнения скрипта.
             self._write(f"ошибка скрипта: {exc}\n")
             return
         for line in lines:
@@ -234,9 +246,6 @@ class ShellEmulator:
                 self._write("скрипт остановлен из-за ошибки\n")
                 return
 
-    # ------------------------------------------------------------------ #
-    # Команды
-    # ------------------------------------------------------------------ #
     def _resolve_or_report(self, cmd, target):
         """Найти узел по пути или вывести ошибку. Возвращает (узел, части)."""
         if self.vfs_root is None:
@@ -259,8 +268,11 @@ class ShellEmulator:
         return True
 
     def cmd_cd(self, args) -> bool:
-        """Сменить текущий каталог VFS."""
-        # Требование: сообщить о неверных аргументах.
+        """Сменить текущий каталог VFS.
+
+        Без аргументов переходит в корень. Больше одного аргумента, путь к
+        файлу или несуществующий путь — ошибка с сообщением.
+        """
         if len(args) > MAX_CD_ARGS:
             self._write("cd: слишком много аргументов\n")
             return False
@@ -336,9 +348,6 @@ class ShellEmulator:
         self.root.destroy()
         return True
 
-    # ------------------------------------------------------------------ #
-    # GUI-обработчики
-    # ------------------------------------------------------------------ #
     def _on_enter(self, _event) -> None:
         """Обработать нажатие Enter в поле ввода."""
         line = self.entry.get()
