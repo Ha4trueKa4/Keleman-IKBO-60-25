@@ -55,10 +55,10 @@ def to_ascii_tree(graph):
     Returns:
         list: строки дерева.
     """
-    return _AsciiTree(graph).render()
+    return AsciiTree(graph).render()
 
 
-class _AsciiTree:
+class AsciiTree:
     """Построитель ASCII-дерева, помнящий уже показанные пакеты."""
 
     def __init__(self, graph):
